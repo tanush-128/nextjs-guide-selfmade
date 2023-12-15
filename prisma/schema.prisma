@@ -1,25 +1,26 @@
 generator client {
   provider = "prisma-client-js"
-
 }
 
 datasource db {
-  provider = "mongodb"
-  url      = env("DATABASE_URL")
+  provider = "postgresql"
+  url = env("POSTGRES_PRISMA_URL") // uses connection pooling
+  directUrl = env("POSTGRES_URL_NON_POOLING")
 }
+
 model Account {
-  id                 String  @id @default(cuid()) @map("_id")
-  userId             String
-  type               String
-  provider           String
-  providerAccountId  String
-  refresh_token      String?  
-  access_token       String?  
-  expires_at         Int?
-  token_type         String?
-  scope              String?
-  id_token           String? 
-  session_state      String?
+  id                String  @id @default(cuid()) @map("_id")
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -35,35 +36,62 @@ model Session {
 }
 
 model User {
-  id            String    @id @default(cuid()) @map("_id")
+  id            String     @id @default(cuid()) @map("_id")
   name          String?
-  email         String   @unique
+  email         String     @unique
   emailVerified DateTime?
   image         String?
   accounts      Account[]
   sessions      Session[]
   posts         Post[]
+  chatRoomsIds  String[]
+  chatRooms     ChatRoomOnUser[]
+  messages      Message[]
 }
 
 model VerificationToken {
-    id         String   @id @default(cuid()) @map("_id")
-    identifier String
-    token      String   @unique
-    expires    DateTime
+  id         String   @id @default(cuid()) @map("_id")
+  identifier String
+  token      String   @unique
+  expires    DateTime
 
-    @@unique([identifier, token])
+  @@unique([identifier, token])
 }
 
-model Post{
-id        String   @id @default(cuid()) @map("_id")
-slug      String   @unique
-title     String
-desc  String
-img      String?
-view Int @default(0)
-userEmail String
-user User @relation(fields: [userEmail], references: [email])
-
+model Post {
+  id        String  @id @default(cuid()) @map("_id")
+  slug      String  @unique
+  title     String
+  desc      String
+  img       String?
+  view      Int     @default(0)
+  userEmail String
+  user      User    @relation(fields: [userEmail], references: [email])
 }
 
+model ChatRoom {
+  id        String    @id @default(cuid()) @map("_id")
+  name      String? 
+  messages  Message[] @relation()
+  createdAt DateTime  @default(now())
+  userIds   String[]
+  users     ChatRoomOnUser[]
+}
 
+model ChatRoomOnUser {
+  id        String   @id @default(cuid()) @map("_id")
+  userId    String
+  chatRoom  ChatRoom @relation(fields: [chatRoomId], references: [id])
+  user     User     @relation(fields: [userId], references: [id])
+  chatRoomId String
+}
+
+model Message {
+  id         String   @id @default(cuid()) @map("_id")
+  createdAt  DateTime @default(now())
+  content    String
+  userId     String
+  chatRoomId String
+  user       User     @relation(fields: [userId], references: [id])
+  chatRoom   ChatRoom @relation(fields: [chatRoomId], references: [id])
+}

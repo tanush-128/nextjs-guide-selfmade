@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
-import getHandler from "./CRUD/create";
-import postHandler from "./CRUD/post";
-import puthHandler from "./CRUD/put";
+import postHandler from "./CRUD/create";
+import getHandler from "./CRUD/read";
+import puthHandler from "./CRUD/update";
 import deleteHandler from "./CRUD/delete";
 
 export const GET = getHandler;
