@@ -90,8 +90,8 @@ model Message {
   id         String   @id @default(cuid()) @map("_id")
   createdAt  DateTime @default(now())
   content    String
-  userId     String
+  userEmail     String
   chatRoomId String
-  user       User     @relation(fields: [userId], references: [id])
+  user       User     @relation(fields: [userEmail], references: [email])
   chatRoom   ChatRoom @relation(fields: [chatRoomId], references: [id])
 }

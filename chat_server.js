@@ -1,81 +1,93 @@
 const ws = new require("ws");
-const { PrismaClient } = require('@prisma/client')
+const { PrismaClient } = require("@prisma/client");
 
+const users = [];
 
-const chatrooms = [];
+class UserConnection {
+  chatrooms;
+  constructor(userEmail, ws) {
+    this.userEmail = userEmail;
+    this.ws = ws;
+    getChatRoomMessages(userEmail).then((chatrooms) => {
+      this.chatrooms = chatrooms;
+      this.ws.send(
+        JSON.stringify({
+          type: "chatrooms",
+          data: chatrooms,
+        })
+      );
+    });
+    this.ws.on("message", (message) => {
+      
+      this.onMessage(message.toString());
+    });
+  }
+  onMessage(_message) {
+    const message = JSON.parse(_message);
+    if (message.type === "message") {
+     
+      users.forEach((user) => {
+        user.chatrooms.forEach((chatroom) => {
+          if (chatroom.id === message.data.chatRoomId) {
+            user.sendMessage(message);
+          }
+        });
+      });
+      setChatRoomUsers(
+        message.data.chatRoomId,
+        this.userEmail,
+        message.data.message
+      );
+    }
+  }
+
+  sendMessage(message) {
+    this.ws.send(JSON.stringify(message));
+  }
+}
 
 const wss = new ws.Server({ port: 3001 });
 
-
 const prisma = new PrismaClient();
 
-async function getChatRoomMessages(chatRoomId) {
-    const messages = await prisma.message.findMany({
-        where: {
-        chatRoomId: chatRoomId,
+async function getChatRoomMessages(userEmail) {
+  const chatrooms = await prisma.chatRoom.findMany({
+    where: {
+      users: {
+        some: {
+          user: {
+            email: userEmail,
+          },
         },
-    });
-    return messages;
+      },
+    },
+    include: {
+      messages: true,
+      users: {
+        include: {
+          user: true,
+        },
+      },
+    },
+  });
+
+  return chatrooms;
 }
 
-async function setChatRoomUsers(_chatRoomId, userId, content) {
-  const messages =await prisma?.message.create({
+async function setChatRoomUsers(_chatRoomId, userEmail, content) {
+  const messages = await prisma?.message.create({
     data: {
-      
       chatRoomId: _chatRoomId,
-      userId: userId,
+      userEmail: userEmail,
       content: content,
     },
   });
-  
 }
 
- 
-
 wss.on("connection", function (ws, incomingMessage) {
-
-  const searchParams = new URL(incomingMessage.url, "http://localhost:3001");
-  const roomId = searchParams.searchParams.get("roomId");
-  getChatRoomMessages(roomId).then((messages) => {
-    for(let message of messages){
-    ws.send(JSON.stringify(message));}
-  });
-
-  const in_chat_room = chatrooms.find((chatroom) => chatroom.roomId === roomId);
-  if (in_chat_room) {
-    if (!in_chat_room.users_ws.includes(ws)) {
-      in_chat_room.users_ws.push(ws);
-    }
-  } else {
-    chatrooms.push({
-      roomId: roomId,
-      users_ws: [ws],
-    });
-  }
-
-  ws.on("close", function () {
-    console.log("onclose");
-    for (let chatroom of chatrooms) {
-      const clients = chatroom.users_ws;
-      const index = clients.indexOf(ws);
-      if (index > -1) {
-        clients.splice(index, 1);
-        console.log(chatrooms);
-      }
-    }
-  });
-  ws.on("message", function (data) {
-    const message = JSON.parse(data);
-    const _roomId = message.chatRoomId;
-    console.log(message);
-   setChatRoomUsers(message.chatRoomId, message.userId, message.content);
-    const chatroom = chatrooms.find((chatroom) => chatroom.roomId === _roomId);
-    const clients = chatroom.users_ws;
-    clients.forEach((client) => {
-      client.send(JSON.stringify(message));
-    });
-  });
-
+  const searchParams = new URL(incomingMessage.url, "ws://localhost:3001");
+  const userEmail = searchParams.searchParams.get("userEmail");
+  const user = new UserConnection(userEmail, ws);
+  users.push(user);
 
 });
-

@@ -1,69 +1,71 @@
 "use client";
 
-import { User } from "@prisma/client";
+import ChatRoom from "@/components/chatrooms";
+import { ChatRoomsContext, socket } from "@/context/MessageContext";
+import { ChatRoomWithMessagesAndUsers } from "@/utils/types";
 import { signOut, useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
-
-interface findChatRoomOnUser {
-  chatRoomName: string | null;
-  chatRoomId: string;
-  users: User[];
-}
+import { useContext, useState } from "react";
 
 export default function Home() {
+  const { chatRooms } = useContext(ChatRoomsContext);
+  const [currentChatRoomOpen, setCurrentChatRoomOpen] =
+    useState<ChatRoomWithMessagesAndUsers>();
+
   const router = useRouter();
   const { data, status } = useSession();
   if (status === "unauthenticated") {
     router.push("/login");
   }
-  const [chatRooms, setChatRooms] = useState<findChatRoomOnUser[]>([]);
-
-  useEffect(() => {
-    const chatRoomIdsPromise = fetch(
-      "http://localhost:3000/api/chatroom?userEmail=" + data?.user?.email
-    );
-    chatRoomIdsPromise.then((res) => {
-      res.json().then((data) => {
-        console.log(data);
-        data.forEach((chatRoom: findChatRoomOnUser) => {
-          if (chatRoom.users.length > 1) {
-            setChatRooms((prev) => [...prev, chatRoom]);
-          }
-        });
-        //  setChatRooms(data);
-      });
-    });
-  }, [data?.user?.email]);
-
+  function sendMessage() {
+    const message = (document.getElementById("message") as HTMLInputElement)
+      .value;
+    const _msg = {
+      data: {
+        message: message,
+        chatRoomId: currentChatRoomOpen?.id,
+        userEmail: data?.user?.email,
+      },
+      type: "message",
+    };
+    socket.send(JSON.stringify(_msg));
+  }
   return (
     <div>
-      <div>
-        {chatRooms?.map((chatRoom) => {
-          return (
-            <div
-              onClick={() => {
-                router.push( "/chat?chatRoomId=" + chatRoom.chatRoomId);
-              }}
-              key={chatRoom.chatRoomId}
-              className="bg-white max-w-xs text-black  p-2 border-4
+      <div className="grid grid-cols-12">
+        <div className="col-span-4 p-6 m-12  bg-indigo-800 rounded-lg">
+          {chatRooms?.map((chatRoom) => {
+            return (
+              <div
+                onClick={() => {
+                  setCurrentChatRoomOpen(chatRoom);
+                }}
+                key={chatRoom.id}
+                className="bg-white text-black  p-2 border-4
                rounded-sm m-1"
-            >
-              <div className="font-bold">
-                {chatRoom.chatRoomName === "oneToOne"
-                  ? chatRoom.users.filter(
-                      (user) => user.email !== data?.user?.email
-                    )[0].name
-                  : chatRoom.chatRoomName}
+              >
+                <div className="font-bold">
+                  {chatRoom.name === "oneToOne" && chatRoom.users.length !== 1
+                    ? chatRoom.users.filter(
+                        (chatRoomOnUser) =>
+                          chatRoomOnUser.user.email !== data?.user?.email
+                      )[0].user.name
+                    : chatRoom.name}
+                </div>
+                <div className="text-xs text-slate-600">
+                  {chatRoom.users.map((chatRoomOnUser) => {
+                    return (
+                      <span key={chatRoomOnUser.user.email}>
+                        {chatRoomOnUser.user.name},{" "}
+                      </span>
+                    );
+                  })}
+                </div>
               </div>
-              <div className="text-xs text-slate-600">
-                {chatRoom.users.map((user) => {
-                  return <span key={user.email}>{user.name}, </span>;
-                })}
-              </div>
-            </div>
-          );
-        })}
+            );
+          })}
+        </div>
+        <ChatRoom currentChatRoomOpen={currentChatRoomOpen as ChatRoomWithMessagesAndUsers} sendMessage={sendMessage} data={data}/>
       </div>
       <button
         onClick={() =>
