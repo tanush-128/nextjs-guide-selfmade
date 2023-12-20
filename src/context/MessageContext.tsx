@@ -1,18 +1,43 @@
 "use client";
 
-import { ChatRoomWithMessagesAndUsers } from "@/utils/types";
+import { ChatRoomModel, ChatRoomType } from "@/utils/types";
 import { useSession } from "next-auth/react";
 import { createContext, useEffect, useState } from "react";
 
 export const ChatRoomsContext = createContext({
-  chatRooms: [] as ChatRoomWithMessagesAndUsers[],
- 
+  chatRooms: [] as ChatRoomModel[],
+  _setChatRooms: (chatRooms: ChatRoomModel[]) => {
+g
+  },
 });
 
-
-
 export let socket: WebSocket;
-var _chatRooms: ChatRoomWithMessagesAndUsers[] = [];
+export var _chatRooms: ChatRoomModel[] = [];
+
+export function createSocketConnection(data: any, setChatRooms: any){
+  socket = new WebSocket(
+    "ws://localhost:3001/?userEmail=" + data?.user?.email
+  );
+  socket.onopen = () => {
+    console.log("connected");
+  };
+
+  socket.onmessage = (event: any) => {
+
+    const data = JSON.parse(event.data);
+    console.log(data);
+    if (data.type === "chatrooms") {
+      _chatRooms = [
+        ...data.data.map((c: any) => new ChatRoomModel(c, setChatRooms)),
+      ];
+      setChatRooms(_chatRooms);
+    } else {
+      _chatRooms
+        .find((chatRoom) => chatRoom.id === data.data.chatRoomId)
+        ?.onSocketMessage(data);
+    }
+  };
+}
 
 export const ChatRoomsContextProvider = ({
   children,
@@ -20,46 +45,14 @@ export const ChatRoomsContextProvider = ({
   children: React.ReactNode;
 }) => {
   const { data, status } = useSession();
-  const [chatRooms, setChatRooms] = useState<ChatRoomWithMessagesAndUsers[]>(
-    []
-  );
+  const [chatRooms, setChatRooms] = useState<ChatRoomModel[]>([]);
+   function _setChatRooms (chatRooms: ChatRoomModel[]) {
+    setChatRooms(chatRooms);
+   };
 
   useEffect(() => {
     if (data?.user?.email) {
-      socket = new WebSocket(
-        "ws://localhost:3001/?userEmail=" + data?.user?.email
-      );
-      socket.onopen = () => {
-        console.log("connected");
-      };
-
-      socket.onmessage = (event: any) => {
-        const data = JSON.parse(event.data);
-        if (data.type === "chatrooms") {
-          setChatRooms([...data.data]);
-          _chatRooms = data.data;
-        }
-        if (data.type === "message") {
-          console.log(data.data.message);
-
-          _chatRooms.forEach((chatRoom) => {
-            console.log(chatRoom.messages.length);
-            if (chatRoom.id === data.data.chatRoomId) {
-              chatRoom.messages.push({
-                id: Math.random().toString(36).substring(7),
-                chatRoomId: data.data.chatRoomId,
-                content: data.data.message,
-                createdAt: new Date(),
-                userEmail: data.data.userEmail,
-              });
-              console.log(chatRoom.messages.length);
-            }
-          });
-          console.log(_chatRooms);
-
-          setChatRooms([..._chatRooms]);
-        }
-      };
+      createSocketConnection(data, setChatRooms);
     }
 
     return () => {
@@ -68,10 +61,8 @@ export const ChatRoomsContextProvider = ({
     };
   }, [data?.user?.email]);
 
- 
-
   return (
-    <ChatRoomsContext.Provider value={{ chatRooms }}>
+    <ChatRoomsContext.Provider value={{ chatRooms,_setChatRooms }}>
       {children}
     </ChatRoomsContext.Provider>
   );
