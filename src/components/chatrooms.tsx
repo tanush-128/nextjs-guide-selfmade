@@ -4,7 +4,6 @@ import { ReactNode, use, useEffect } from "react";
 import MessageElement from "./message";
 
 export default function ChatRoom({
-
   currentChatRoomOpen,
   sendMessage,
   setTyping,
@@ -15,36 +14,34 @@ export default function ChatRoom({
   setTyping: any;
   data: any;
 }): ReactNode {
-
-   
   return (
     <div className="col-span-8 h-screen p-12 ">
       <div className="col-span-9 h-full  box-border flex flex-col  bg-indigo-800 rounded-lg relative ">
         <div className="bg-white rounded-t-lg p-4">
-            <div>
-
-          <div className="font-bold text-black text-xl">
-            {currentChatRoomOpen?.name === "oneToOne" &&
-            currentChatRoomOpen?.users.length !== 1
-            ? currentChatRoomOpen?.users.filter(
-                (chatRoomOnUser) =>
-                chatRoomOnUser.user.email !== data?.user?.email
-                )[0].user.name
+          <div>
+            <div className="font-bold text-black text-xl">
+              {(currentChatRoomOpen?.name === "oneToOne" &&
+                currentChatRoomOpen?.users.length !== 1) ||
+              (currentChatRoomOpen?.name === null &&
+                currentChatRoomOpen?.users.length !== 1)
+                ? currentChatRoomOpen?.users.filter(
+                    (chatRoomOnUser) =>
+                      chatRoomOnUser.user.email !== data?.user?.email
+                  )[0].user.name
                 : currentChatRoomOpen?.name}
-          </div>
-          <div className="text-xs text-slate-600">
-            {currentChatRoomOpen?.users.map((chatRoomOnUser) => {
+            </div>
+            <div className="text-xs text-slate-600">
+              {currentChatRoomOpen?.users.map((chatRoomOnUser) => {
                 return (
-                    <span key={chatRoomOnUser.user.email}>
-                  {chatRoomOnUser.user.name}{" ,"}
-                </span>
-              );
-            })}
+                  <span key={chatRoomOnUser.user.email}>
+                    {chatRoomOnUser.user.name}
+                    {" ,"}
+                  </span>
+                );
+              })}
+            </div>
           </div>
-            </div>
-            <div className="text-black">
-                {currentChatRoomOpen?.online.length}
-            </div>
+          <div className="text-black">{currentChatRoomOpen?.online.length}</div>
         </div>
         <div className="flex flex-col p-6  overflow-y-auto" id="messages_list">
           {currentChatRoomOpen?.messages.map((message, index) => (
@@ -55,7 +52,11 @@ export default function ChatRoom({
               {currentChatRoomOpen?.typing.map((user) => {
                 return (
                   <MessageElement
-                    message={{ content: "...typing", userEmail: user.userEmail, userName: user.userName }}
+                    message={{
+                      content: "...typing",
+                      userEmail: user.userEmail,
+                      userName: user.userName,
+                    }}
                     key={user.userEmail}
                     data={data}
                   />
