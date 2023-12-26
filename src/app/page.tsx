@@ -1,65 +1,58 @@
 "use client";
-
-import ChatRoom from "@/components/chatrooms";
 import {
-  ChatRoomsContext,
-  createSocketConnection,
-  socket,
-} from "@/context/MessageContext";
+  createChatRoom,
+  getChatRoomMessages,
+  getUsers,
+} from "@/actions/actions";
+import ChatRoom from "@/components/chatrooms";
+import { useChatRoomsStore } from "@/store";
 import { ChatRoomModel } from "@/utils/types";
 import { signOut, useSession } from "next-auth/react";
-import { useRouter } from "next/navigation";
-import { use, useContext, useEffect, useState } from "react";
+import { redirect } from "next/navigation";
+import { useEffect, useRef, useState } from "react";
+
+export let socket: WebSocket;
+
+const init = async (userEmail: string) => {
+  const _chatRooms = await getChatRoomMessages(userEmail);
+  _chatRooms.forEach((chatRoom) => {
+    // chatRooms.push(new ChatRoomModel(chatRoom));
+    useChatRoomsStore.getState().addChatRoom(new ChatRoomModel(chatRoom));
+  });
+
+  socket = new WebSocket("ws://localhost:3001/?userEmail=" + userEmail);
+  socket.onopen = () => {
+    console.log("connected");
+  };
+  socket.onmessage = (event) => {
+    const json = JSON.parse(event.data);
+
+    useChatRoomsStore.getState().chatRooms.forEach((chatRoom) => {
+      if (chatRoom.id === json.data.chatRoomId) {
+        chatRoom.onSocketMessage(json);
+      }
+    });
+  };
+};
 
 export default function Home() {
-  const { chatRooms, _setChatRooms } = useContext(ChatRoomsContext);
-  const [currentChatRoomOpen, setCurrentChatRoomOpen] =
-    useState<ChatRoomModel>();
-
-  const [searchOpen, setSearchOpen] = useState<boolean>(false);
-
-  const router = useRouter();
   const { data, status } = useSession();
+  const [searchOpen, setSearchOpen] = useState<boolean>(false);
+  const chatRooms = useChatRoomsStore((state) => state.chatRooms);
+  const [currentChatRoomOpenIndex, setCurrentChatRoomOpenIndex] =
+    useState<number>(0);
   if (status === "unauthenticated") {
-    router.push("/login");
+    redirect("/login");
   }
+  useEffect(() => {
+    console.log(data);
+    if (data?.user?.email) init(data?.user?.email as string);
 
-  function sendMessage() {
-    const message = (document.getElementById("message") as HTMLInputElement)
-      .value;
-    const _msg = {
-      data: {
-        message: message,
-        chatRoomId: currentChatRoomOpen?.id,
-        userEmail: data?.user?.email,
-        userName: data?.user?.name,
-      },
-      type: "message",
+    return () => {
+      if (socket) socket.close();
+      console.log("closed");
     };
-    if (socket) {
-      socket.send(JSON.stringify(_msg));
-      (document.getElementById("message") as HTMLInputElement).value = "";
-    } else {
-      createSocketConnection(data, _setChatRooms);
-    }
-  }
-  function setTyping() {
-    const messages_list = document.getElementById("messages_list");
-    messages_list?.scrollTo(0, messages_list.scrollHeight);
-    const _msg = {
-      data: {
-        chatRoomId: currentChatRoomOpen?.id,
-        userEmail: data?.user?.email,
-      },
-      type: "typing",
-    };
-    if (socket) {
-      socket.send(JSON.stringify(_msg));
-    } else {
-      createSocketConnection(data, _setChatRooms);
-    }
-  }
-
+  }, [data?.user?.email]);
   return (
     <div>
       <div className="grid grid-cols-12">
@@ -67,23 +60,17 @@ export default function Home() {
         {!searchOpen && (
           <ChatRoomsList
             chatRooms={chatRooms}
-            setCurrentChatRoomOpen={setCurrentChatRoomOpen}
+            setCurrentChatRoomOpenIndex={setCurrentChatRoomOpenIndex}
             data={data}
             setSearchOpen={setSearchOpen}
           />
         )}
-
-        <ChatRoom
-          currentChatRoomOpen={currentChatRoomOpen as ChatRoomModel}
-          sendMessage={sendMessage}
-          setTyping={setTyping}
-          data={data}
-        />
+        {chatRooms && <ChatRoom i={currentChatRoomOpenIndex} data={data} />}
       </div>
       <button
         className="btn"
         onClick={() =>
-          status === "authenticated" ? signOut() : router.push("/login")
+          status === "authenticated" ? signOut() : redirect("/login")
         }
       >
         {status === "authenticated" ? "Sign Out" : "Sign In"}
@@ -92,17 +79,17 @@ export default function Home() {
   );
 }
 
-function ChatRoomsList({
+const ChatRoomsList = ({
   chatRooms,
-  setCurrentChatRoomOpen,
+  setCurrentChatRoomOpenIndex,
   data,
   setSearchOpen,
 }: {
   chatRooms: ChatRoomModel[];
-  setCurrentChatRoomOpen: Function;
+  setCurrentChatRoomOpenIndex: Function;
   data: any;
   setSearchOpen: Function;
-}) {
+}) => {
   return (
     <div className="col-span-4  m-4  bg-indigo-800 rounded-lg">
       <div className="bg-white p-4 rounded-t-lg flex gap-2">
@@ -120,40 +107,33 @@ function ChatRoomsList({
           +
         </button>
       </div>
-      {chatRooms?.map((chatRoom) => {
+      {chatRooms?.map((chatRoom, index) => {
         return (
           <div
             onClick={() => {
-              setCurrentChatRoomOpen(chatRoom);
+              setCurrentChatRoomOpenIndex(index);
             }}
             key={chatRoom.id}
             className="bg-white text-black  p-2 border-4
                rounded-sm m-1"
           >
             <div className="font-bold">
-              {(chatRoom.name === "oneToOne" && chatRoom.users.length !== 1) ||
-              (chatRoom.name === null && chatRoom.users.length !== 1)
-                ? chatRoom.users.filter(
+              {" "}
+              {(chatRoom?.name === "oneToOne" &&
+                chatRoom?.users.length !== 1) ||
+              (chatRoom?.name === null && chatRoom?.users.length !== 1)
+                ? chatRoom?.users.filter(
                     (chatRoomOnUser) =>
                       chatRoomOnUser.user.email !== data?.user?.email
                   )[0].user.name
-                : chatRoom.name}
-            </div>
-            <div className="text-xs text-slate-600">
-              {chatRoom.users.map((chatRoomOnUser) => {
-                return (
-                  <span key={chatRoomOnUser.user.email}>
-                    {chatRoomOnUser.user.name},{" "}
-                  </span>
-                );
-              })}
+                : chatRoom?.name}
             </div>
           </div>
         );
       })}
     </div>
   );
-}
+};
 
 function Search({
   data,
@@ -164,22 +144,17 @@ function Search({
 }) {
   const [searchResults, setSearchResults] = useState<any[]>([]);
   const [searchInput, setSearchInput] = useState<string>("");
+  const [selectedUsers, setSelectedUsers] = useState<any[]>([]);
+  const nameRef = useRef<HTMLInputElement>(null);
   //   });
   useEffect(() => {
-    fetch("http://localhost:3000/api/users")
-      .then((res) => res.json())
-      .then((res) => {
-        console.log(res);
-        setSearchResults(res.users);
-      });
+    search();
   }, []);
 
   function search() {
-    fetch(`http://localhost:3000/api/users/?contains=${searchInput}`)
-      .then((res) => res.json())
-      .then((res) => {
-        setSearchResults(res.users);
-      });
+    getUsers(searchInput).then((res) => {
+      setSearchResults(res as any);
+    });
   }
   return (
     <div className="col-span-4  m-4  bg-indigo-800 rounded-lg">
@@ -201,35 +176,74 @@ function Search({
           }}
         />
       </div>
-      {searchResults?.map((user) => {
-        return (
-          <div
-            key={user.email}
-            className="bg-white text-black  p-2 border-4
+      {
+        <div
+          className="bg-white text-black  p-2 border-4
                rounded-sm m-1"
-          >
-            <div className="font-bold">{user.name}</div>
-            <div className="text-xs text-slate-600">{user.email}</div>
-            <button
-              className="btn"
-              onClick={() => {
-                fetch(`http://localhost:3000/api/chatroom/`, {
-                  method: "POST",
-                  body: JSON.stringify({
-                    userEmails: [user.email, data?.user?.email],
-                  }),
-                })
-                  .then((res) => res.json())
-                  .then((res) => {
-                    console.log(res);
-                  });
-              }}
-            >
-              Add
-            </button>
+        >
+          <div className="font-bold">Selected</div>
+          <div className="text-xs text-slate-600">
+            {selectedUsers.map((user) => {
+              return (
+                <span key={user.email}>
+                  {user.name}
+                  {" ,"}
+                </span>
+              );
+            })}
           </div>
-        );
-      })}
+        </div>
+      }
+      {searchResults
+        ?.filter((user) => user.email !== data?.user?.email)
+        .map((user) => {
+          return (
+            <div
+              key={user.email}
+              className="bg-white text-black  p-2 border-4
+               rounded-sm m-1"
+            >
+              <div className="font-bold">{user.name}</div>
+              <div className="text-xs text-slate-600">{user.email}</div>
+              <button
+                className="btn"
+                onClick={() => {
+                  selectedUsers.filter((u) => u.email === user.email).length > 0
+                    ? setSelectedUsers([
+                        ...selectedUsers.filter((u) => u.email !== user.email),
+                      ])
+                    : setSelectedUsers([...selectedUsers, user]);
+                  // setSelectedUsers([...selectedUsers, user]);
+                  // createChatRoom("oneToOne", [user.email, data?.user?.email]);
+                }}
+              >
+                {selectedUsers.filter((u) => u.email === user.email).length > 0
+                  ? "Added"
+                  : "Add"}
+              </button>
+            </div>
+          );
+        })}
+
+      <div className="absolute">
+        <input
+          type="text"
+          placeholder="Enter chat room name"
+          id="name"
+          ref={nameRef}
+        />
+        <button
+          className="btn"
+          onClick={() => {
+            createChatRoom(nameRef.current?.value || "", [
+              ...selectedUsers.map((u) => u.email),
+              data?.user?.email,
+            ]);
+          }}
+        >
+          Create
+        </button>
+      </div>
     </div>
   );
 }

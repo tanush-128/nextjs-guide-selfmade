@@ -1,5 +1,5 @@
-import { _chatRooms } from "@/context/MessageContext";
 import { ChatRoom, ChatRoomOnUser, Message, User } from "@prisma/client";
+import { StoreApi, UseBoundStore, create } from "zustand";
 
 interface ChatRoomOnUserWithUser extends ChatRoomOnUser {
   user: User;
@@ -15,72 +15,102 @@ interface Typing {
   userName: string;
 }
 
-export class ChatRoomModel {
+interface Store {
   typing: Typing[];
-  messages;
-  users;
+  messages: Message[];
+  users: ChatRoomOnUserWithUser[];
+  id: string;
+  name: string;
+  online: string[];
+  setTyping: (typing: Typing[]) => void;
+  addMessage: (messages: Message[]) => void;
+  setUsers: (users: ChatRoomOnUserWithUser[]) => void;
+  setId: (id: string) => void;
+  setName: (name: string) => void;
+  addOnlineUser: (online: string) => void;
+  setOffline: (offline: string) => void;
+}
+
+export class ChatRoomModel {
   id;
   name;
-  setChatRooms: any;
-  online :string[] = [];
-  constructor(chatRoom: ChatRoomType, setChatRooms: any) {
-    this.messages = chatRoom.messages;
-    this.users = chatRoom.users;
+  users;
+  useChatRoomStore: UseBoundStore<StoreApi<Store>>;
+  constructor(chatRoom: ChatRoomType) {
     this.id = chatRoom.id;
     this.name = chatRoom.name;
-    this.setChatRooms = setChatRooms;
-    this.typing = [];
-      
-    setInterval(() => {
-      this.typing = [];
-      this.setChatRooms([..._chatRooms]);
-    }, 5000);
+    this.users = chatRoom.users;
+
+    this.useChatRoomStore = create<Store>((set) => ({
+      typing: [],
+      messages: [],
+      users: [],
+      id: "",
+      name: "",
+      online: [],
+      setTyping: (typing) => set({ typing }),
+      addMessage: (messages) =>
+        set((state) => ({ messages: [...state.messages, ...messages] })),
+      setUsers: (users) => set({ users }),
+      setId: (id) => set({ id }),
+      setName: (name) => set({ name }),
+      addOnlineUser: (online) =>
+        set({ online: [...this.useChatRoomStore.getState().online, online] }),
+      setOffline: (offline) =>
+        set((state) => ({ online: state.online.filter((o) => o !== offline) })),
+    }));
+    this.storeInit(chatRoom);
   }
+  storeInit(chatRoom: ChatRoomType) {
+    chatRoom.messages.forEach((message) => {
+      this.useChatRoomStore.getState().addMessage([message]);
+    });
+    this.useChatRoomStore.getState().setUsers(chatRoom.users);
+    this.useChatRoomStore.getState().setId(chatRoom.id);
+    this.useChatRoomStore.getState().setName(chatRoom.name!);
+  }
+
   onSocketMessage(data: any) {
     console.log(data);
-    if (data.type === "message") {
-      this.onMessage(data);
-    }  if (data.type === "typing") {
-      this.onTyping(data);
-    } if (data.type === "online") {
-      console.log(data.data);
-      if(!this.online.includes(data.data.userEmail)){
-
-        this.online.push(data.data.userEmail);
-      }
-      console.log(this.online);
-      this.setChatRooms([..._chatRooms]);
-    }
-    //handle message with type "offline"
-    if (data.type === "offline") {
-      console.log(data.data);
-      this.online = this.online.filter((userEmail) => userEmail !== data.data.userEmail);
-      console.log(this.online);
-      this.setChatRooms([..._chatRooms]);
+    switch (data.type) {
+      case "message":
+        this.onMessage(data);
+        break;
+      case "typing":
+        this.onTyping(data);
+        break;
+      case "online":
+        this.onOnline(data);
+        break;
+      case "offline":
+        this.onOffline(data);
+        break;
+      default:
+        break;
     }
   }
+  onOnline(data: any) {
+    this.useChatRoomStore.getState().addOnlineUser(data.data.userEmail);
+  }
+  onOffline(data: any) {}
+
   onMessage(data: any) {
-    this.messages.push({
+    const newMessage = {
       id: Math.random().toString(36).substring(7),
       chatRoomId: data.data.chatRoomId,
       content: data.data.message,
       userEmail: data.data.userEmail,
       userName: data.data.userName,
       createdAt: new Date(),
-    });
-
-    this.setChatRooms([..._chatRooms]);
+    };
+    this.useChatRoomStore.getState().addMessage([newMessage]);
   }
   onTyping(data: any) {
-   
-  
-    if (!this.typing.find((user) => user.userEmail === data.data.userEmail)) {
-      this.typing.push({
+    this.useChatRoomStore.getState().setTyping([
+      {
         userEmail: data.data.userEmail,
         userName: data.data.userName,
-      });
-    }
-
-    this.setChatRooms([..._chatRooms]);
+      },
+    ]);
   }
 }
