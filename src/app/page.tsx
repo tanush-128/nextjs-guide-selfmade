@@ -4,6 +4,7 @@ import {
   getChatRoomMessages,
   getUsers,
 } from "@/actions/actions";
+import { ChatRoomsList } from "@/components/channels";
 import ChatRoom from "@/components/chatrooms";
 import { useChatRoomsStore } from "@/store";
 import { ChatRoomModel } from "@/utils/types";
@@ -79,61 +80,7 @@ export default function Home() {
   );
 }
 
-const ChatRoomsList = ({
-  chatRooms,
-  setCurrentChatRoomOpenIndex,
-  data,
-  setSearchOpen,
-}: {
-  chatRooms: ChatRoomModel[];
-  setCurrentChatRoomOpenIndex: Function;
-  data: any;
-  setSearchOpen: Function;
-}) => {
-  return (
-    <div className="col-span-4  m-4  bg-indigo-800 rounded-lg">
-      <div className="bg-white p-4 rounded-t-lg flex gap-2">
-        <input
-          className="w-full p-2 rounded-sm"
-          type="text"
-          placeholder="Search"
-        />
-        <button
-          className="text-black font-extrabold text-4xl"
-          onClick={() => {
-            setSearchOpen(true);
-          }}
-        >
-          +
-        </button>
-      </div>
-      {chatRooms?.map((chatRoom, index) => {
-        return (
-          <div
-            onClick={() => {
-              setCurrentChatRoomOpenIndex(index);
-            }}
-            key={chatRoom.id}
-            className="bg-white text-black  p-2 border-4
-               rounded-sm m-1"
-          >
-            <div className="font-bold">
-              {" "}
-              {(chatRoom?.name === "oneToOne" &&
-                chatRoom?.users.length !== 1) ||
-              (chatRoom?.name === null && chatRoom?.users.length !== 1)
-                ? chatRoom?.users.filter(
-                    (chatRoomOnUser) =>
-                      chatRoomOnUser.user.email !== data?.user?.email
-                  )[0].user.name
-                : chatRoom?.name}
-            </div>
-          </div>
-        );
-      })}
-    </div>
-  );
-};
+
 
 function Search({
   data,

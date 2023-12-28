@@ -8,51 +8,21 @@ export default function ChatRoom({
   i,
   data,
 }: {
- i: number;
+  i: number;
   data: any;
-  }): ReactNode {
-  if(useChatRoomsStore.getState().chatRooms.length === 0) return <div></div>
-  const chatRoom = useChatRoomsStore.getState().chatRooms[i].useChatRoomStore((state) => state);
-
-  function sendMessage() {
-    const message = (document.getElementById("message") as HTMLInputElement)
-      .value;
-    const _msg = {
-      data: {
-        message: message,
-        chatRoomId: chatRoom?.id,
-        userEmail: data?.user?.email,
-        userName: data?.user?.name,
-      },
-      type: "message",
-    };
-    if (socket) {
-      socket.send(JSON.stringify(_msg));
-      (document.getElementById("message") as HTMLInputElement).value = "";
-    }
-  }
-  function setTyping() {
-    const messages_list = document.getElementById("messages_list");
-    messages_list?.scrollTo(0, messages_list.scrollHeight);
-    const _msg = {
-      data: {
-        chatRoomId: chatRoom?.id,
-        userEmail: data?.user?.email,
-        userName: data?.user?.name,
-      },
-      type: "typing",
-    };
-    if (socket) {
-      socket.send(JSON.stringify(_msg));
-    }
-  }
+}): ReactNode {
+  if (useChatRoomsStore.getState().chatRooms.length === 0) return <div></div>;
+  const chatRoom = useChatRoomsStore
+    .getState()
+    .chatRooms[i].useChatRoomStore((state) => state);
 
   return (
-    <div className="col-span-8 h-screen p-12 ">
-      <div className="col-span-9 h-full  box-border flex flex-col  bg-indigo-800 rounded-lg relative ">
-        <div className="bg-white rounded-t-lg p-4">
+    <div className="col-span-10 h-screen b relative ">
+      <div className="col-span-9 h-full  box-border flex flex-col bg-bg_2 ">
+        <div className="text-white">
           <div>
-            <div className="font-bold text-black text-xl">
+            <div className="font-bold p-4 b text-xl">
+              #{" "}
               {(chatRoom?.name === "oneToOne" &&
                 chatRoom?.users.length !== 1) ||
               (chatRoom?.name === null && chatRoom?.users.length !== 1)
@@ -61,16 +31,6 @@ export default function ChatRoom({
                       chatRoomOnUser.user.email !== data?.user?.email
                   )[0].user.name
                 : chatRoom?.name}
-            </div>
-            <div className="text-xs text-slate-600">
-              {chatRoom?.users.map((chatRoomOnUser) => {
-                return (
-                  <span key={chatRoomOnUser.user.email}>
-                    {chatRoomOnUser.user.name}
-                    {" ,"}
-                  </span>
-                );
-              })}
             </div>
           </div>
           <div className="text-black">{chatRoom?.online.length}</div>
@@ -98,27 +58,74 @@ export default function ChatRoom({
           )}
         </div>
 
-        <div className="w-full flex justify-end ">
-          <input
-            type="text"
-            placeholder="Enter your message..."
-            id="message"
-            onChange={() => {
-              setTyping();
-            }}
-            onKeyUp={(e) => {
-              if (e.key === "Enter") {
-                sendMessage();
-                // console.log("enter");
-              }
-            }}
-          />
-
-          <button className="btn btn-primary" onClick={sendMessage}>
-            Send
-          </button>
+        <div className="w-full p-2 absolute   bottom-2">
+          <SendMessage chatRoomId={chatRoom.id} data={data} />
         </div>
       </div>
     </div>
   );
 }
+
+const SendMessage = ({
+  chatRoomId,
+  data,
+}: {
+  chatRoomId: string;
+  data: any;
+}) => {
+  function sendMessage() {
+    const message = (document.getElementById("message") as HTMLInputElement)
+      .value;
+    const _msg = {
+      data: {
+        message: message,
+        chatRoomId: chatRoomId,
+        userEmail: data?.user?.email,
+        userName: data?.user?.name,
+      },
+      type: "message",
+    };
+    if (socket) {
+      socket.send(JSON.stringify(_msg));
+      (document.getElementById("message") as HTMLInputElement).value = "";
+    }
+  }
+  function setTyping() {
+    const messages_list = document.getElementById("messages_list");
+    messages_list?.scrollTo(0, messages_list.scrollHeight);
+    const _msg = {
+      data: {
+        chatRoomId: chatRoomId,
+        userEmail: data?.user?.email,
+        userName: data?.user?.name,
+      },
+      type: "typing",
+    };
+    if (socket) {
+      socket.send(JSON.stringify(_msg));
+    }
+  }
+  return (
+    <div className="bg-message_bg p-2 rounded-lg b ">
+      <input
+        type="text"
+        className="bg-transparent outline-none"
+        placeholder="Enter your message..."
+        id="message"
+        onChange={() => {
+          setTyping();
+        }}
+        onKeyUp={(e) => {
+          if (e.key === "Enter") {
+            sendMessage();
+            // console.log("enter");
+          }
+        }}
+      />
+
+      {/* <button className="btn btn-primary" onClick={sendMessage}>
+        Send
+      </button> */}
+    </div>
+  );
+};

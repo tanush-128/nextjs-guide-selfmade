@@ -26,8 +26,10 @@ body {
     rgb(var(--background-start-rgb));
 }
 
-input{
-  @apply border-2 rounded-lg border-gray-400 bg-black py-2 px-2
+
+
+.b {
+  @apply border-slate-600 border;
 }
 
 /* button {
